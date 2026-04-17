@@ -1,0 +1,87 @@
+<?php
+header('Content-Type: application/json');
+header('Access-Control-Allow-Origin: *');
+header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE');
+header('Access-Control-Allow-Headers: Content-Type, Authorization');
+
+require_once 'Database.php';
+
+$database = new Database();
+$db = $database->getConnection();
+
+$method = $_SERVER['REQUEST_METHOD'];
+$request = explode('/', trim($_SERVER['PATH_INFO'] ?? '/', '/'));
+$resource = $request[0] ?? null;
+$id = $request[1] ?? null;
+
+switch($resource) {
+    case 'categories':
+        if($method == 'GET') {
+            $stmt = $db->query("SELECT * FROM categories WHERE status='active'");
+            echo json_encode($stmt->fetchAll());
+        }
+        break;
+        
+    case 'lessons':
+        if($method == 'GET') {
+            if($id) {
+                $stmt = $db->prepare("SELECT * FROM lessons WHERE id = ? AND status='published'");
+                $stmt->execute([$id]);
+            } else {
+                $stmt = $db->query("SELECT l.*, c.name_ar as category_name 
+                                    FROM lessons l 
+                                    JOIN categories c ON l.category_id = c.id 
+                                    WHERE l.status='published'");
+            }
+            echo json_encode($stmt->fetchAll());
+        }
+        break;
+        
+    case 'jobs':
+        if($method == 'GET') {
+            $stmt = $db->query("SELECT j.*, c.company_name 
+                                FROM jobs j 
+                                JOIN companies c ON j.company_id = c.id 
+                                WHERE j.is_active = 1");
+            echo json_encode($stmt->fetchAll());
+        }
+        break;
+        
+    case 'courses':
+        if($method == 'GET') {
+            $stmt = $db->query("SELECT * FROM courses WHERE status='published'");
+            echo json_encode($stmt->fetchAll());
+        }
+        break;
+        
+    case 'login':
+        if($method == 'POST') {
+            $data = json_decode(file_get_contents('php://input'), true);
+            $stmt = $db->prepare("SELECT id, full_name, email, role, status 
+                                   FROM users 
+                                   WHERE email = ? AND password = ?");
+            $stmt->execute([$data['email'], $data['password']]);
+            $user = $stmt->fetch();
+            if($user && $user['status'] == 'active') {
+                echo json_encode(["success" => true, "user" => $user]);
+            } else {
+                echo json_encode(["success" => false, "message" => "بيانات الدخول غير صحيحة"]);
+            }
+        }
+        break;
+        
+    default:
+        echo json_encode([
+            "success" => true,
+            "message" => "API ساعدني يعمل بشكل طبيعي",
+            "endpoints" => [
+                "GET /categories",
+                "GET /lessons",
+                "GET /lessons/{id}",
+                "GET /jobs",
+                "GET /courses",
+                "POST /login"
+            ]
+        ]);
+}
+?>
